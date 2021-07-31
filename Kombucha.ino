@@ -85,17 +85,24 @@ int grams80Real = 39511;
 //3&4: 1.74
 //4&5: 1.89
 
+long trueWeight;
 int gramsFull = 470; //Not including container
-int rise = 21436;
-int calRun = 47;
+int rise = 11622;//21436;
+int calRun = 25;//47;
 
 boolean turning;
 
 boolean localButton;
 
+//Add idle animation
+int idle;
+
+// Maybe ignore this
 int getGrams(long x)
 {
-  return (int)((float)(rise/calRun) * ( x - scaleOffset-containerWeight));
+  prnt("Rise/run: " + (String)((float)(rise/calRun)+5), "Run/rise: " + (String)((float)(calRun/rise))+5);
+  delay( 2000 );
+  return (int)((float)(calRun/rise) * ( x - scaleOffset));  
 }
 
 void setup() {
@@ -158,6 +165,8 @@ void setup() {
   calibratedBottle = true;
   calibratedZero = true;
 
+  drawToScreen();
+
   //zeroGram();
 }
 
@@ -169,7 +178,6 @@ void tst()
   if(millis() - lastInterrupt > 10) // we set a 10ms no-interrupts window
     {    
       curButtonState = true;
-
       lastInterrupt = millis();
 
     }
@@ -248,7 +256,10 @@ void loop() {
   if (scale.is_ready()) {
     //scaleReading = scale.read();
     curWeight = scale.read();
+    trueWeight = curWeight - scaleOffset;
   }
+
+  Serial.println("Weight on scale: " + (String)curWeight );
   
   drawToScreen();
   delay( 1000 );
@@ -313,7 +324,9 @@ void runMotorAuto()
   reading = 0;
   if (scale.is_ready()) {
     reading = scale.read();
-  if( reading < 200000 )
+
+  while( reading -scaleOffset -containerWeight < 20000)
+  //if( reading < 200000 )
   {
     if (digitalRead(toggleSwitch) == HIGH) {
       digitalWrite(motorTerminal1, LOW); //these logic levels create forward direction
@@ -323,8 +336,8 @@ void runMotorAuto()
       digitalWrite(motorTerminal1, HIGH); // these logic levels create reverse direction
       digitalWrite(motorTerminal2, LOW);
     }
-   drawToScreen();
-  }else
+    prnt("Fill: " + (String)((float)((trueWeight-containerWeight)/20000)*100), blank);
+  }//else
   {
       digitalWrite(motorTerminal1, LOW); // these logic levels create reverse direction
       digitalWrite(motorTerminal2, LOW);
@@ -418,9 +431,9 @@ void start(String item)
 {
   if ( item == "bottle" )
   {
-    if ( calibratedCups && calibratedBottle )
+    if ( calibratedBottle )
     {
-      
+      runMotorAuto();
     }
   }
 }
@@ -531,133 +544,135 @@ void buttonPress()
   if( localButton )
   {
     buttonPressed = true;
+    prnt("Button already", "pressed!");
   }else{
+    
+    switch( menuArea )
+    {
+      // Splash screen
+      case 0:
+        setStuff( 1 );
+        break;
   
-  switch( menuArea )
-  {
-    // Splash screen
-    case 0:
-      setStuff( 1 );
-      break;
-
-    // Main menu
-    case 1:
-      // Start menu
-      switch( curSelection )
-      {
-        case 0:
-          setStuff( 3);
-          break;
-        case 1:
-          setStuff( 2);
-          break;
-        case 3:
-          setStuff( 0 );
-          break;
-      }
-      break;
-
-    // Calibration selection
-    case 2:
-      switch( curSelection )
-      {
-        case 0:
-          setStuff(6);
-          break;
-        case 1:
-          setStuff(7);
-          break;
-        case 2:
-          setStuff(0);
-          break;
-        case 3:
-          setStuff(1);
-          break;
-      }
-      break;
-
-    // Start Menu
-    case 3:
-      switch( curSelection )
-      {
-        case 0:
-          setStuff(4);
-          break;
-        case 1:
-          setStuff(5);
-          break;
-        case 2:
-          setStuff(1);
-          break;
-      }
-      break;
-
-    // Starts
-    case 4:
-      switch( curSelection )
-      {
-        case 0:
-          setStuff( 0 );
-          start("bottle"); 
-          break;
-        case 1:
-          setStuff( 3 );
-          break;
-      }
-      break;
-    case 5:
-      switch( curSelection )
-      {
-        case 0:
-          setStuff( 0 );
-          start("bottle"); 
-          break;
-        case 1:
-          setStuff( 3 );
-          break;
-      }
-      break;
-    // Calibrations
-    case 6:
-      switch( curSelection )
-      {
-        case 0:
-          // Do calibratinos
-          //setStuff(0);
-          zeroScale();
-          break;
-        case 1:
-          setStuff(2);
-          break;
-      }
-      break;
-    case 7:
-      switch( curSelection )
-      {
-        case 0:
-          // Do calibratinos
-          setStuff(0);
-          break;
-        case 1:
-          setStuff(2);
-          break;
-      }
-      break;
-    case 8:
-      switch( curSelection )
-      {
-        case 0:
-          // Do calibratinos
-          setStuff(0);
-          break;
-        case 1:
-          setStuff(2);
-          break;
-      }
-      break;
+      // Main menu
+      case 1:
+        // Start menu
+        switch( curSelection )
+        {
+          case 0:
+            setStuff( 3);
+            break;
+          case 1:
+            setStuff( 2);
+            break;
+          case 3:
+            setStuff( 0 );
+            break;
+        }
+        break;
+  
+      // Calibration selection
+      case 2:
+        switch( curSelection )
+        {
+          case 0:
+            setStuff(6);
+            break;
+          case 1:
+            setStuff(7);
+            break;
+          case 2:
+            setStuff(0);
+            break;
+          case 3:
+            setStuff(1);
+            break;
+        }
+        break;
+  
+      // Start Menu
+      case 3:
+        switch( curSelection )
+        {
+          case 0:
+            setStuff(4);
+            break;
+          case 1:
+            setStuff(5);
+            break;
+          case 2:
+            setStuff(1);
+            break;
+        }
+        break;
+  
+      // Starts
+      case 4:
+        switch( curSelection )
+        {
+          case 0:
+            setStuff( 0 );
+            start("bottle"); 
+            break;
+          case 1:
+            setStuff( 3 );
+            break;
+        }
+        break;
+      case 5:
+        switch( curSelection )
+        {
+          case 0:
+            setStuff( 0 );
+            start("bottle"); 
+            break;
+          case 1:
+            setStuff( 3 );
+            break;
+        }
+        break;
+      // Calibrations
+      case 6:
+        switch( curSelection )
+        {
+          case 0:
+            // Do calibratinos
+            //setStuff(0);
+            zeroScale();
+            break;
+          case 1:
+            setStuff(2);
+            break;
+        }
+        break;
+      case 7:
+        switch( curSelection )
+        {
+          case 0:
+            // Do calibratinos
+            setStuff(0);
+            break;
+          case 1:
+            setStuff(2);
+            break;
+        }
+        break;
+      case 8:
+        switch( curSelection )
+        {
+          case 0:
+            // Do calibratinos
+            setStuff(0);
+            break;
+          case 1:
+            setStuff(2);
+            break;
+        }
+        break;
+    }
   }
-  //drawToScreen();
-}}
+  drawToScreen();
+}
 
 String getFill()
 {
@@ -667,111 +682,116 @@ String getFill()
 void drawToScreen()
 {
 
-
+  Serial.print("menu: " + (String)menuArea + "\t selection: " + (String)curSelection );
   if( curWeight > maxWeight )
   {
     prnt("Item too heavy!!", "Please remove it");
-    return;
-  }
+    //return;
+  }else{
+    
+    String calibrationText = "Put itm on scl";
+    String start = ">Start      Back";
+    String back = "Start      >Back";
+    
+    Serial.print("\tIn the loop");
+    switch( menuArea )
+    {
+      // Splash screen
+      case 0:
+        Serial.println("\tAt splash screen");
+        /*long f = takeMeasurement();/*
+        String fillPercent;
+        if( f - scaleOffset < containerWeight - containerWeight * 0.1  )
+          fillPercent = "ERR";
+        else
+          fillPercent = (String)(int)(((float)(f - scaleOffset - containerWeight)/(float)(cupsWeight))*100)+"%";
+        prnt( (String)( f - scaleOffset - containerWeight) + "::" + (String) cupsWeight, (String)(f-scaleOffset) + "::" + d);
+        //prnt( (String)( curWeight - scaleOffset), (String)((curWeight-scaleOffset)/cupsWeight) + "%" );*/
+        //prnt( "Weight: " + (String)getGrams(f) + "g ", "Target: " + (String)gramsFull + "g");
+        prnt( blank, blank );
+        break;
+        
+      // Main Menu
+      case 1:
+        Serial.println("\tAt main menu");
+        switch( curSelection )
+        {
+          case 0:
+            prnt( ">" + menu[0], " " + menu[1]);
+            break;
+          case 1:
+            prnt( " " + menu[0], ">" + menu[1]);
+            break;
+          case 2:
+            prnt( ">" + menu[2], blank);
+            break;
+        }
+        break;
   
-  String calibrationText = "Put itm on scl";
-  String start = ">Start      Back";
-  String back = "Start      >Back";
+      // Calibrate Menu
+      case 2:
+        switch( curSelection )
+        {
+          case 0:
+            prnt( ">" + calibrateMenu[0], " " + calibrateMenu[1]);
+            break;
+          case 1:
+            prnt( " " + calibrateMenu[0], ">" + calibrateMenu[1]);
+            break;
+          case 2:
+            prnt( ">" + calibrateMenu[2], " " + calibrateMenu[3]);
+            break;
+          case 3:
+            prnt( " " + calibrateMenu[2], ">" + calibrateMenu[3]);
+            break;
+        }
+        break;
   
-  switch( menuArea )
-  {
-    // Splash screen
-    case 0:
-      long f = takeMeasurement();/*
-      String fillPercent;
-      if( f - scaleOffset < containerWeight - containerWeight * 0.1  )
-        fillPercent = "ERR";
-      else
-        fillPercent = (String)(int)(((float)(f - scaleOffset - containerWeight)/(float)(cupsWeight))*100)+"%";
-      prnt( (String)( f - scaleOffset - containerWeight) + "::" + (String) cupsWeight, (String)(f-scaleOffset) + "::" + d);
-      //prnt( (String)( curWeight - scaleOffset), (String)((curWeight-scaleOffset)/cupsWeight) + "%" );*/
-      prnt( "Weight: " + (String)getGrams(f) + "g ", "Target: " + (String)gramsFull + "g");
-      break;
-      
-    // Main Menu
-    case 1:
-      switch( curSelection )
-      {
-        case 0:
-          prnt( ">" + menu[0], " " + menu[1]);
-          break;
-        case 1:
-          prnt( " " + menu[0], ">" + menu[1]);
-          break;
-        case 2:
-          prnt( ">" + menu[2], blank);
-          break;
-      }
-      break;
-
-    // Calibrate Menu
-    case 2:
-      switch( curSelection )
-      {
-        case 0:
-          prnt( ">" + calibrateMenu[0], " " + calibrateMenu[1]);
-          break;
-        case 1:
-          prnt( " " + calibrateMenu[0], ">" + calibrateMenu[1]);
-          break;
-        case 2:
-          prnt( ">" + calibrateMenu[2], " " + calibrateMenu[3]);
-          break;
-        case 3:
-          prnt( " " + calibrateMenu[2], ">" + calibrateMenu[3]);
-          break;
-      }
-      break;
-
-    // Start Menu
-    case 3:
-      switch( curSelection )
-      {
-        case 0:
-          prnt( ">" + startMenu[0], startMenu[1]);
-          break;
-        case 1:
-          prnt( startMenu[0], ">" + startMenu[1]);
-          break;
-        case 2:
-          prnt( ">" + startMenu[2], blank);
-          break;
-      }
-      break;
-
-    // Calibrations
-    case 6:
-    case 7:
-    case 8:
-      switch( curSelection )
-      {
-        case 0:
-          prnt( calibrationText, start);
-          break;
-        case 1:
-          prnt( calibrationText, back);
-          break;
-      }
-      break;
-
-    // Starts
-    case 4:
-    case 5:
-      switch( curSelection )
-      {
-        case 0:
-          prnt( calibrationText, start);
-          break;
-        case 1:
-          prnt( calibrationText, back);
-          break;
-      }
-      break;
+      // Start Menu
+      case 3:
+        switch( curSelection )
+        {
+          case 0:
+            prnt( ">" + startMenu[0], startMenu[1]);
+            break;
+          case 1:
+            prnt( startMenu[0], ">" + startMenu[1]);
+            break;
+          case 2:
+            prnt( ">" + startMenu[2], blank);
+            break;
+        }
+        break;
+  
+      // Calibrations
+      case 6:
+      case 7:
+      case 8:
+        switch( curSelection )
+        {
+          case 0:
+            prnt( calibrationText, start);
+            break;
+          case 1:
+            prnt( calibrationText, back);
+            break;
+        }
+        break;
+  
+      // Starts
+      case 4:
+      case 5:
+        switch( curSelection )
+        {
+          case 0:
+            prnt( calibrationText, start);
+            break;
+          case 1:
+            prnt( calibrationText, back);
+            break;
+        }
+        break;
+    }
   }
   if( false )
     prnt( (String)menuArea,(String) curSelection);
