@@ -2,53 +2,54 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-// HX711 Scale Stuff
+// Orange inits
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 HX711 scale;
+
+// HX711 Scale Stuff
 const int LOADCELL_DOUT_PIN = 12;
 const int LOADCELL_SCK_PIN = 11;
 
-
+// Timing
 unsigned long lastInterrupt;
 
 // Other
 
 const String blank = "                ";
+
+// Pinouts
 const int toggleSwitch = 6;
 const int motorTerminal1 = 8;
 const int motorTerminal2 = 7;
 const int enablePin = 9;
-bool isRunning = false;
-
-// Input
 const int runpin = 5;
 const int inputCLK = 4;
 const int inputDT = 3;
-String encdir = "";
-volatile boolean isButtonPressed;
-boolean isTurning;
 
-bool lastButtonState;
-bool curButtonState;
+bool isRunning = false;
+
+// Input
+  // Button
+boolean localButton;
 boolean buttonPressed;
-
-int counter = 0;
+  
+  // Rotary stuff
 volatile int currentStateCLK;
 volatile int previousStateCLK;
-
-long scaleOffset;
-int scaleReading;
-// Screen Stuff
-LiquidCrystal_I2C lcd(0x27, 16, 2);
-long reading;
+volatile byte lastInput;
+volatile byte curClock;
 
 // UI
 int menuArea = 0;
 int curSelection = 0;
+volatile boolean needPrint;
 
+// Calibration checks
 boolean calibratedCups;
 boolean calibratedBottle;
 boolean calibratedZero;
 
+// Menus
 String menu[]={"Start", "Calibrations", "Back"};
 String calibrateMenu[] = {"Calibrate btl", "Calibrate 2cups", "Zero bed", "Back"};
 String startMenu[] = {"Bottle", "2 cups", "Back"};
@@ -56,12 +57,14 @@ String startStuff[] = {"Start", "Back"};
 int menuSizes[] = {0, sizeof(menu[0]), sizeof(calibrateMenu[0]), sizeof(startMenu[0]), 2,2,2,2,2};
 
 // Scale stuff
-int count = 0;
-
+long scaleOffset;
+long reading;
 long curWeight;
 const long maxWeight = (long)(1000000 * 0.75);
 long bottleWeight;
+long trueWeight;
 
+// Tried to figure shit out...
 long containerWeight = 208780;
 int gramsContainer=466;
 long bottle = 104418;
@@ -85,25 +88,17 @@ int grams80Real = 39511;
 //3&4: 1.74
 //4&5: 1.89
 
-long trueWeight;
 int gramsFull = 470; //Not including container
 int rise = 11622;//21436;
 int calRun = 25;//47;
 
-boolean turning;
-
-boolean localButton;
-
 //Add idle animation
 int idle;
 
-// Maybe ignore this
-int getGrams(long x)
-{
-  prnt("Rise/run: " + (String)((float)(rise/calRun)+5), "Run/rise: " + (String)((float)(calRun/rise))+5);
-  delay( 2000 );
-  return (int)((float)(calRun/rise) * ( x - scaleOffset));  
-}
+//OTHER
+int max = 32695; 
+int zero = 25108;
+
 
 void setup() {
 
@@ -153,11 +148,10 @@ void setup() {
     zeroScale();
     delay( 1000 );
   }
-  turning = false;
 
   lastButtonState = false;
-  attachInterrupt(digitalPinToInterrupt(2), tst, LOW);
-  attachInterrupt(digitalPinToInterrupt(3), bloop, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(2), buttonInturupt, LOW);
+  attachInterrupt(digitalPinToInterrupt(3), roraryInturupt, CHANGE);
   lcd.setCursor(0,0);
 
   //zeroCups();
@@ -170,40 +164,6 @@ void setup() {
   //zeroGram();
 }
 
-volatile boolean needPrint;
-
-void tst()
-{
-  //curButtonState = true;
-  if(millis() - lastInterrupt > 10) // we set a 10ms no-interrupts window
-    {    
-      curButtonState = true;
-      lastInterrupt = millis();
-
-    }
-}
-volatile byte lastInput;
-volatile byte curClock;
-volatile boolean wait;
-void bloop()
-{
-  if(millis() - lastInterrupt > 6) // we set a 10ms no-interrupts window
-    {    
-     
-  needPrint = true;
-  
-  lastInput = digitalRead( inputDT );
-  //previousStateCLK = currentStateCLK;
-  currentStateCLK= digitalRead( inputCLK );
-  //wait = true;
-  
-      lastInterrupt = millis();
-
-    }
-}
-
-int max = 32695; 
-int zero = 25108;
 
 void loop() {
   //lastInput = digitalRead( inputDT );
@@ -319,57 +279,63 @@ void loop() {
    previousStateCLK = currentStateCLK; 
 }*/
 
-void runMotorAuto()
-{
-  reading = 0;
-  if (scale.is_ready()) {
-    reading = scale.read();
 
-  while( reading -scaleOffset -containerWeight < 20000)
-  //if( reading < 200000 )
-  {
-    if (digitalRead(toggleSwitch) == HIGH) {
-      digitalWrite(motorTerminal1, LOW); //these logic levels create forward direction
-      digitalWrite(motorTerminal2, HIGH);
-    }
-    else {
-      digitalWrite(motorTerminal1, HIGH); // these logic levels create reverse direction
-      digitalWrite(motorTerminal2, LOW);
-    }
-    prnt("Fill: " + (String)((float)((trueWeight-containerWeight)/20000)*100), blank);
-  }//else
-  {
-      digitalWrite(motorTerminal1, LOW); // these logic levels create reverse direction
-      digitalWrite(motorTerminal2, LOW);
-  }
-  
-  }   
+
+// Maybe ignore this
+int getGrams(long x)
+{
+  prnt("Rise/run: " + (String)((float)(rise/calRun)+5), "Run/rise: " + (String)((float)(calRun/rise))+5);
+  delay( 2000 );
+  return (int)((float)(calRun/rise) * ( x - scaleOffset));  
 }
 
-void runMotorHand()
+
+// Get current weigt on the scale
+long takeMeasurement()
 {
-  reading = 0;
+  long reading = -1;
+  delay(250);
   if (scale.is_ready()) {
     reading = scale.read();
-  if( isRunning )
-  {
-    if (digitalRead(toggleSwitch) == HIGH) {
-      digitalWrite(motorTerminal1, LOW); //these logic levels create forward direction
-      digitalWrite(motorTerminal2, HIGH);
-    }
-    else {
-      digitalWrite(motorTerminal1, HIGH); // these logic levels create reverse direction
-      digitalWrite(motorTerminal2, LOW);
-    }
-  }else
-  {
-      digitalWrite(motorTerminal1, LOW); // these logic levels create reverse direction
-      digitalWrite(motorTerminal2, LOW);
   }
-  
-  }   
+
+  return reading;
 }
 
+
+// Inturrutp for handeling button presses
+void buttonInturupt()
+{
+  //curButtonState = true;
+  if(millis() - lastInterrupt > 10) // we set a 10ms no-interrupts window
+    {    
+      curButtonState = true;
+      lastInterrupt = millis();
+
+    }
+}
+
+
+// Interrupt for handeling rotary events
+void roraryInturupt()
+{
+  if(millis() - lastInterrupt > 6) // we set a 10ms no-interrupts window
+    {    
+     
+  needPrint = true;
+  
+  lastInput = digitalRead( inputDT );
+  //previousStateCLK = currentStateCLK;
+  currentStateCLK= digitalRead( inputCLK );
+  //wait = true;
+  
+      lastInterrupt = millis();
+
+    }
+}
+
+
+// Rotary dial has been turned clockwise
 void clockwise()
 {
   if (menuArea != 0)
@@ -378,6 +344,8 @@ void clockwise()
     curSelection = 0;
 }
 
+
+// Rotary dial has been turned counter clockwise
 void counterClockwise()
 {
   if (menuArea != 0)
@@ -386,12 +354,41 @@ void counterClockwise()
     curSelection = menuSizes[menuArea] -1;
 }
 
-void setStuff(int newMenuArea)
+
+// Resets navigation stuff
+void resetNavigation(int newMenuArea)
 {
   menuArea = newMenuArea;
   curSelection = 0;
 }
 
+
+// Repeat a string pattern X times
+String repeatX(String str, int X)
+{
+  String ret = "";
+
+  for( int i=0; i< X; i++)
+    ret += str;
+
+  return ret;
+}
+
+
+// Starts the botteling process
+void start(String item)
+{
+  if ( item == "bottle" )
+  {
+    if ( calibratedBottle )
+    {
+      runMotorAuto();
+    }
+  }
+}
+
+
+// Prints to LCD screen
 void prnt( String lineA, String lineB)
 {
   String outputA = "";
@@ -427,39 +424,8 @@ void prnt( String lineA, String lineB)
   }
 }
 
-void start(String item)
-{
-  if ( item == "bottle" )
-  {
-    if ( calibratedBottle )
-    {
-      runMotorAuto();
-    }
-  }
-}
 
-long takeMeasurement()
-{
-  long reading = -1;
-  delay(250);
-  if (scale.is_ready()) {
-    reading = scale.read();
-  }
-
-  return reading;
-}
-
-// Repeat a string pattern X times
-String repeatX(String str, int X)
-{
-  String ret = "";
-
-  for( int i=0; i< X; i++)
-    ret += str;
-
-  return ret;
-}
-
+// Zero the scale
 void zeroScale()
 {
   int delayTime = 250;
@@ -481,6 +447,8 @@ void zeroScale()
   calibratedZero = true;
 }
 
+
+// Get the weight of 2 cups of kombucha
 void zeroCups()
 {
   localButton = true;
@@ -509,6 +477,8 @@ void zeroCups()
   localButton = false;
 }
 
+
+// Just for testing
 void zeroGram()
 {
   localButton = true;
@@ -538,6 +508,66 @@ void zeroGram()
   localButton = false;
 }
 
+
+// Run motor sensed by weight on the scale
+void runMotorAuto()
+{
+  reading = 0;
+  if (scale.is_ready()) {
+    reading = scale.read();
+
+  while( reading -scaleOffset -containerWeight < 20000)
+  //if( reading < 200000 )
+  {
+    if (digitalRead(toggleSwitch) == HIGH) {
+      digitalWrite(motorTerminal1, LOW); //these logic levels create forward direction
+      digitalWrite(motorTerminal2, HIGH);
+    }
+    else {
+      digitalWrite(motorTerminal1, HIGH); // these logic levels create reverse direction
+      digitalWrite(motorTerminal2, LOW);
+    }
+    prnt("Fill: " + (String)((float)((trueWeight-containerWeight)/20000)*100), blank);
+  }//else
+  {
+      digitalWrite(motorTerminal1, LOW); // these logic levels create reverse direction
+      digitalWrite(motorTerminal2, LOW);
+  }
+  
+  }   
+}
+
+
+void runMotorHand()
+{
+  reading = 0;
+  if (scale.is_ready()) {
+    reading = scale.read();
+  if( isRunning )
+  {
+    if (digitalRead(toggleSwitch) == HIGH) {
+      digitalWrite(motorTerminal1, LOW); //these logic levels create forward direction
+      digitalWrite(motorTerminal2, HIGH);
+    }
+    else {
+      digitalWrite(motorTerminal1, HIGH); // these logic levels create reverse direction
+      digitalWrite(motorTerminal2, LOW);
+    }
+  }else
+  {
+      digitalWrite(motorTerminal1, LOW); // these logic levels create reverse direction
+      digitalWrite(motorTerminal2, LOW);
+  }
+  
+  }   
+}
+
+
+
+
+
+
+
 void buttonPress()
 { 
 
@@ -551,7 +581,7 @@ void buttonPress()
     {
       // Splash screen
       case 0:
-        setStuff( 1 );
+        resetNavigation( 1 );
         break;
   
       // Main menu
@@ -560,13 +590,13 @@ void buttonPress()
         switch( curSelection )
         {
           case 0:
-            setStuff( 3);
+            resetNavigation( 3);
             break;
           case 1:
-            setStuff( 2);
+            resetNavigation( 2);
             break;
           case 3:
-            setStuff( 0 );
+            resetNavigation( 0 );
             break;
         }
         break;
@@ -576,16 +606,16 @@ void buttonPress()
         switch( curSelection )
         {
           case 0:
-            setStuff(6);
+            resetNavigation(6);
             break;
           case 1:
-            setStuff(7);
+            resetNavigation(7);
             break;
           case 2:
-            setStuff(0);
+            resetNavigation(0);
             break;
           case 3:
-            setStuff(1);
+            resetNavigation(1);
             break;
         }
         break;
@@ -595,13 +625,13 @@ void buttonPress()
         switch( curSelection )
         {
           case 0:
-            setStuff(4);
+            resetNavigation(4);
             break;
           case 1:
-            setStuff(5);
+            resetNavigation(5);
             break;
           case 2:
-            setStuff(1);
+            resetNavigation(1);
             break;
         }
         break;
@@ -611,11 +641,11 @@ void buttonPress()
         switch( curSelection )
         {
           case 0:
-            setStuff( 0 );
+            resetNavigation( 0 );
             start("bottle"); 
             break;
           case 1:
-            setStuff( 3 );
+            resetNavigation( 3 );
             break;
         }
         break;
@@ -623,11 +653,11 @@ void buttonPress()
         switch( curSelection )
         {
           case 0:
-            setStuff( 0 );
+            resetNavigation( 0 );
             start("bottle"); 
             break;
           case 1:
-            setStuff( 3 );
+            resetNavigation( 3 );
             break;
         }
         break;
@@ -637,11 +667,11 @@ void buttonPress()
         {
           case 0:
             // Do calibratinos
-            //setStuff(0);
+            //resetNavigation(0);
             zeroScale();
             break;
           case 1:
-            setStuff(2);
+            resetNavigation(2);
             break;
         }
         break;
@@ -650,10 +680,10 @@ void buttonPress()
         {
           case 0:
             // Do calibratinos
-            setStuff(0);
+            resetNavigation(0);
             break;
           case 1:
-            setStuff(2);
+            resetNavigation(2);
             break;
         }
         break;
@@ -662,10 +692,10 @@ void buttonPress()
         {
           case 0:
             // Do calibratinos
-            setStuff(0);
+            resetNavigation(0);
             break;
           case 1:
-            setStuff(2);
+            resetNavigation(2);
             break;
         }
         break;
@@ -674,11 +704,8 @@ void buttonPress()
   drawToScreen();
 }
 
-String getFill()
-{
-  //
-}
 
+// Updates navigation then print current navigation menu to the LCD screen
 void drawToScreen()
 {
 
