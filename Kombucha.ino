@@ -32,17 +32,20 @@ bool isRunning = false;
   // Button
 boolean localButton;
 boolean buttonPressed;
+boolean curButtonState;
   
   // Rotary stuff
 volatile int currentStateCLK;
 volatile int previousStateCLK;
 volatile byte lastInput;
 volatile byte curClock;
+volatile boolean rotaryAction;
 
 // UI
 int menuArea = 0;
 int curSelection = 0;
-volatile boolean needPrint;
+String curLineA;
+String curLineB;
 
 // Calibration checks
 boolean calibratedCups;
@@ -101,7 +104,11 @@ int zero = 25108;
 
 
 void setup() {
-
+  
+  // For the scale
+  Serial.begin(57600);
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+  
   // Setup
   pinMode(toggleSwitch, INPUT);
   pinMode(motorTerminal1, OUTPUT);
@@ -110,175 +117,86 @@ void setup() {
 
   // Enable H bridge
   digitalWrite(enablePin, HIGH);
-  
-  int buttonState;
-  
-
-  // For the scale
-  Serial.begin(57600);
-  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
 
   // Input
   pinMode( inputCLK, INPUT );
   pinMode( inputDT, INPUT );
   //pinMode(runpin, INPUT_PULLUP);
-  isButtonPressed = false;
-  
+  //isButtonPressed = false;  
 
-  previousStateCLK = digitalRead( inputCLK );
-  
-
-  // LCD Stuff
+  // LCD init
   lcd.begin();
   lcd.backlight();
   lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print("Kombucha  Wizard");
-  lcd.setCursor(0,1);
-  lcd.print("     V0.0.1     ");
+  prnt( "Kombucha  Wizard","     V0.0.1     ");
   delay( 1000 );
 
+  // Calibrate the bed
   if( calibratedZero == false )
   {
-    lcd.setCursor(0,0);
-    lcd.print("Self calibration");
-    lcd.setCursor(0,1);
-    lcd.print("   initiating   ");
+    prnt( "Self calibration", "   initiating   ");
     delay( 1000 );
     zeroScale();
     delay( 1000 );
   }
 
-  lastButtonState = false;
+  // Add interrupts for the button and rotary encoder
   attachInterrupt(digitalPinToInterrupt(2), buttonInturupt, LOW);
   attachInterrupt(digitalPinToInterrupt(3), roraryInturupt, CHANGE);
-  lcd.setCursor(0,0);
 
   //zeroCups();
   calibratedCups = true;
   calibratedBottle = true;
   calibratedZero = true;
 
-  drawToScreen();
+  // Additional setup
+  previousStateCLK = digitalRead( inputCLK );
+  //lastButtonState = false;
 
-  //zeroGram();
+  // Display the splash screen
+  drawToScreen();
 }
 
 
 void loop() {
-  //lastInput = digitalRead( inputDT );
+  // Button inturrupt has been triggered, need to do stuff about it
   if( curButtonState == true )
   {
     buttonPress();
     curButtonState = false;
   }
-  
-  if( needPrint )
-  {
-    //       prnt("Counter: " + (String) ((int)count), encdir);
-    needPrint= false;
-    //prnt((String) lastInput, (String) currentStateCLK );
 
+  // Rotary inturrupt has been triggered, need to do stuff about it
+  if( rotaryAction )
+  {
+    // This variable makes this method only fire when needed
+    rotaryAction= false;
     if( lastInput == 1 && currentStateCLK == 0)
     {
-      //prnt("Clockwise",blank);
       clockwise();
       drawToScreen();
     }
     else if (lastInput == 1 && currentStateCLK == 1 )
     {
-      //prnt("CounterClockwise",blank);
       counterClockwise();
       drawToScreen();
     }
-    /*
-    if (lastInput != currentStateCLK) { 
-      encdir ="CW";
-      count+=1;
-      //clockwise();
-      prnt("Counter: " + (String) ((int)count/2), encdir);
-      turning = true;
-      //drawToScreen();
-    } else {
-      encdir ="CCW";
-      //counterClockwise();
-      count-=1;
-      //drawToScreen();
-      prnt("Counter: " + (String) ((int)count/2), encdir);
-      turning = true;
-    }
   }
-   //previousStateCLK = currentStateCLK; */
-  }
- // Serial.print( (String)scaleReading + "\n");
-
 
   if (scale.is_ready()) {
-    //scaleReading = scale.read();
     curWeight = scale.read();
     trueWeight = curWeight - scaleOffset;
   }
 
+  // Debug output
   Serial.println("Weight on scale: " + (String)curWeight );
-  
+
+  // Draw everything to the screen
   drawToScreen();
+
+  // Loop fires only once every second
   delay( 1000 );
 }
-    
-  // Read the current state of inputCLK
-  // currentStateCLK = digitalRead(inputCLK);
-  // curButtonState = digitalRead(runpin);
-
-   /*
-/*
-   if( lastButtonState == HIGH && curButtonState == LOW )
-   {
-    if( isButtonPressed == false)
-    {
-      isButtonPressed = true;
-      buttonPress();
-    } 
-   }else
-      isButtonPressed = false;
-* /
-
-      //prnt(blank,blank);
-      //prnt("menu# " + (String) menuArea ,blank);
-    //drawToScreen();
-   
-    
-   // If the previous and the current state of the inputCLK are different then a pulse has occured
-   if (currentStateCLK != previousStateCLK){ 
-       
-     // If the inputDT state is different than the inputCLK state then 
-     // the encoder is rotating counterclockwise
-   if( turning )
-    turning = false;
-   else{
-     if (digitalRead(inputDT) != currentStateCLK) { 
-       encdir ="CW";
-       count+=1;
-       clockwise();
-       //prnt("Counter: " + (String) ((int)count), encdir);
-       turning = true;
-       drawToScreen();
-     } else {
-       encdir ="CCW";
-       counterClockwise();
-       count-=1;
-       drawToScreen();
-       //prnt("Counter: " + (String) ((int)count), encdir);
-       turning = true;
-     }}
-   } 
-   // Update previousStateCLK with the current state
-   previousStateCLK = currentStateCLK; 
-   lastButtonState = curButtonState;
-   //delay(0500);
-   * /
-   previousStateCLK = currentStateCLK; 
-}*/
-
 
 
 // Maybe ignore this
@@ -295,10 +213,8 @@ long takeMeasurement()
 {
   long reading = -1;
   delay(250);
-  if (scale.is_ready()) {
+  if (scale.is_ready())
     reading = scale.read();
-  }
-
   return reading;
 }
 
@@ -311,7 +227,6 @@ void buttonInturupt()
     {    
       curButtonState = true;
       lastInterrupt = millis();
-
     }
 }
 
@@ -321,16 +236,10 @@ void roraryInturupt()
 {
   if(millis() - lastInterrupt > 6) // we set a 10ms no-interrupts window
     {    
-     
-  needPrint = true;
-  
-  lastInput = digitalRead( inputDT );
-  //previousStateCLK = currentStateCLK;
-  currentStateCLK= digitalRead( inputCLK );
-  //wait = true;
-  
+      rotaryAction = true;
+      lastInput = digitalRead( inputDT );
+      currentStateCLK= digitalRead( inputCLK );
       lastInterrupt = millis();
-
     }
 }
 
@@ -367,10 +276,8 @@ void resetNavigation(int newMenuArea)
 String repeatX(String str, int X)
 {
   String ret = "";
-
   for( int i=0; i< X; i++)
     ret += str;
-
   return ret;
 }
 
@@ -404,23 +311,24 @@ void prnt( String lineA, String lineB)
     outputB = errorMessage;
   else
     outputB = lineB;
-  
-  lcd.setCursor(0,0);
-  lcd.print(blank);
-  lcd.setCursor(0,1);
-  lcd.print(blank);
 
-  if( true )
+  // Check to see if the line changes, if not don't waste the time and energy re-wrighting to the screen
+  if( outputA != curLineA)
   {
     lcd.setCursor(0,0);
-    lcd.print(outputA );//                                   ");
-    lcd.setCursor(0,1);
-    lcd.print(outputB );//+ "                                         ");
-  }else{
+    lcd.print(blank);
+    curLineA = outputA;
     lcd.setCursor(0,0);
-    lcd.print("Menu: " + (String) menuArea + "            ");
+    lcd.print(outputA );
+  }
+
+  if( outputB != curLineB)
+  {
     lcd.setCursor(0,1);
-    lcd.print("Selection: " + (String) curSelection + "                    ");
+    lcd.print(blank);
+    curLineB = outputB;
+    lcd.setCursor(0,1);
+    lcd.print(outputB );
   }
 }
 
@@ -561,11 +469,6 @@ void runMotorHand()
   
   }   
 }
-
-
-
-
-
 
 
 void buttonPress()
@@ -713,7 +616,6 @@ void drawToScreen()
   if( curWeight > maxWeight )
   {
     prnt("Item too heavy!!", "Please remove it");
-    //return;
   }else{
     
     String calibrationText = "Put itm on scl";
@@ -725,22 +627,11 @@ void drawToScreen()
     {
       // Splash screen
       case 0:
-        Serial.println("\tAt splash screen");
-        /*long f = takeMeasurement();/*
-        String fillPercent;
-        if( f - scaleOffset < containerWeight - containerWeight * 0.1  )
-          fillPercent = "ERR";
-        else
-          fillPercent = (String)(int)(((float)(f - scaleOffset - containerWeight)/(float)(cupsWeight))*100)+"%";
-        prnt( (String)( f - scaleOffset - containerWeight) + "::" + (String) cupsWeight, (String)(f-scaleOffset) + "::" + d);
-        //prnt( (String)( curWeight - scaleOffset), (String)((curWeight-scaleOffset)/cupsWeight) + "%" );*/
-        //prnt( "Weight: " + (String)getGrams(f) + "g ", "Target: " + (String)gramsFull + "g");
-        prnt( blank, blank );
+        prnt( "    Kombucha    ", "      Town      ");
         break;
         
       // Main Menu
       case 1:
-        Serial.println("\tAt main menu");
         switch( curSelection )
         {
           case 0:
