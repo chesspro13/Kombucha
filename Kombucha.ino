@@ -62,11 +62,42 @@ long curWeight;
 const long maxWeight = (long)(1000000 * 0.75);
 long bottleWeight;
 
-long cupsWeight;
+long containerWeight = 208780;
+int gramsContainer=466;
+long bottle = 104418;
+long grams5 = 109063;
+long grams10 = 111506;
+long grams20 = 116363;
+long grams40 = 125269;
+long grams80 = 143929;
+long grams242 = 217536;
+long grams242Real = 113118;
+long cupsWeight = 423872 - containerWeight;
+
+int grams5Real = 4645;
+int grams10Real = 7088;
+int grams20Real = 11945;
+int grams40Real = 20851;
+int grams80Real = 39511;
+//(5,4645),(10,7088),(20,11945),(40,20851),(80,39511)
+//1&2: 1.53
+//2&3: 1.69
+//3&4: 1.74
+//4&5: 1.89
+
+int gramsFull = 470; //Not including container
+int rise = 21436;
+int calRun = 47;
 
 boolean turning;
 
 boolean localButton;
+
+int getGrams(long x)
+{
+  return (int)((float)(rise/calRun) * ( x - scaleOffset-containerWeight));
+}
+
 void setup() {
 
   // Setup
@@ -123,7 +154,11 @@ void setup() {
   lcd.setCursor(0,0);
 
   //zeroCups();
+  calibratedCups = true;
+  calibratedBottle = true;
+  calibratedZero = true;
 
+  //zeroGram();
 }
 
 volatile boolean needPrint;
@@ -390,35 +425,43 @@ void start(String item)
   }
 }
 
+long takeMeasurement()
+{
+  long reading = -1;
+  delay(250);
+  if (scale.is_ready()) {
+    reading = scale.read();
+  }
+
+  return reading;
+}
+
+// Repeat a string pattern X times
+String repeatX(String str, int X)
+{
+  String ret = "";
+
+  for( int i=0; i< X; i++)
+    ret += str;
+
+  return ret;
+}
+
 void zeroScale()
 {
   int delayTime = 250;
-  long reading1 = 0;
-  long reading2 = 0;
-  long reading3 = 0;
+  long readings[3];
 
   prnt(" Reading  Scale ", "====");
-  
-  if (scale.is_ready()) {
-    reading1 = scale.read();  
+  delay( delayTime );
+  for( int i = 0; i < 3; i++ )
+  {
+    prnt(" Reading  Scale ", "====" + repeatX("====",i+1));
+    readings[i] = takeMeasurement();
     delay( delayTime );
-    prnt(" Reading  Scale ", "========");
-    //prnt(" Reading  Scale ", (String)reading1);
   }
-  
-  if (scale.is_ready()) {
-    reading2 = scale.read();  
-    delay( delayTime );
-    prnt(" Reading  Scale ", "============");
-    //prnt(" Reading  Scale ", (String)reading2);
-  }
-  
-  if (scale.is_ready()) {
-    reading3 = scale.read();  
-    delay( delayTime );
-    //prnt(" Reading  Scale ", "================");
-    //prnt(" Reading  Scale ", (String)reading3 );
-  }
+
+  scaleOffset = (readings[0] + readings[1] + readings[2])/3;
 
   prnt( "Calibration done", blank);
   delay( delayTime/2);
@@ -428,27 +471,57 @@ void zeroScale()
 void zeroCups()
 {
   localButton = true;
-  long containerWeight;
   
   prnt("Place empty cup", "then press btn");
   while( !curButtonState )
     delay( 500 );
   buttonPressed = false;
-  containerWeight = curWeight - scaleOffset;
+  containerWeight = takeMeasurement() - scaleOffset;
 
   curButtonState = false;
-  delay( 2000 );
+  delay( 500 );
+  
 
   prnt("Fill with 2 cups", "then press btn" );
   while( !curButtonState )
     delay( 500 );
-  buttonPressed = false;  
-  cupsWeight = curWeight - containerWeight;
+  buttonPressed = false;
+  
+  cupsWeight = takeMeasurement() - scaleOffset - containerWeight;
 
   curButtonState = false;
 
-  prnt("2 cups is this", "heavy: " + (String) cupsWeight);
-  delay(999999);
+  prnt("Cont: " + (String)containerWeight, "2 cups: " + (String) (cupsWeight+containerWeight));
+  delay(2000);
+  localButton = false;
+}
+
+void zeroGram()
+{
+  localButton = true;
+  
+  int delayTime = 250;
+  long readings[3];
+
+
+  prnt("Place empty cup", "then press btn");
+  while( !curButtonState )
+    delay( 500 );
+
+  prnt(" Reading  Scale ", "====");
+  delay( delayTime );
+  for( int i = 0; i < 3; i++ )
+  {
+    prnt(" Reading  Scale ", "====" + repeatX("====",i+1));
+    readings[i] = takeMeasurement();
+    delay( delayTime );
+  }
+
+  scaleOffset = (readings[0] + readings[1] + readings[2])/3;
+
+  prnt( "5 grams ", (String)scaleOffset);
+  delay( 999999999999);
+  
   localButton = false;
 }
 
@@ -586,6 +659,11 @@ void buttonPress()
   //drawToScreen();
 }}
 
+String getFill()
+{
+  //
+}
+
 void drawToScreen()
 {
 
@@ -604,8 +682,15 @@ void drawToScreen()
   {
     // Splash screen
     case 0:
-      prnt( (String)( curWeight - scaleOffset), (String) maxWeight );
-      //prnt( "Weight: xxxg " + (String)(scaleReading) + "%", "Target: XXXg");
+      long f = takeMeasurement();/*
+      String fillPercent;
+      if( f - scaleOffset < containerWeight - containerWeight * 0.1  )
+        fillPercent = "ERR";
+      else
+        fillPercent = (String)(int)(((float)(f - scaleOffset - containerWeight)/(float)(cupsWeight))*100)+"%";
+      prnt( (String)( f - scaleOffset - containerWeight) + "::" + (String) cupsWeight, (String)(f-scaleOffset) + "::" + d);
+      //prnt( (String)( curWeight - scaleOffset), (String)((curWeight-scaleOffset)/cupsWeight) + "%" );*/
+      prnt( "Weight: " + (String)getGrams(f) + "g ", "Target: " + (String)gramsFull + "g");
       break;
       
     // Main Menu
