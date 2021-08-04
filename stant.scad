@@ -1,3 +1,34 @@
+// LCD
+lcdScreenWidth = 71;
+lcdScreenHeight = 24.5;
+lcdScreebDepth = 4;
+lcdBackWidtg = 80
+lcdBackHeight = 36.25;
+
+// Motor
+motorDiameter = 28;
+motorHoleSpacing = 48;
+motorHoleDiameter = 3.25;
+  
+// Rotary encoder
+reShaftDiameter = 6.6;
+reShaftHeight = 5.41;
+reShaftBaseWidth = 11.88;
+reShaftBaseHeight = 12;
+  
+// Switch
+switchShaftDiameter = 5.7;
+switchShaftDepth = 8.9;
+switchShaftBaseWidth = 7.75;
+switchShaftBaseHeight = 13;
+switchShaftBaseDepth = 9.5;
+   
+// Scale
+scaleDiameter = 100;
+scaleHeight = 30;
+scaleCircuitBoardWidth = 34;
+scakeCircuitBoardHeight = 20.75;
+
 module scale() {
     cylinder(28,100/2,100/2);
 }
