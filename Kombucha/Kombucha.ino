@@ -1,19 +1,27 @@
-  // Depricated
-// #include <HX711.h>
-// #include <LiquidCrystal_I2C.h>
+/**************************************************************************
+* Kombucha Machine
+**************************************************************************/
+
+  // OLED
+#include <SPI.h>
 #include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
-  // Switched to OLED
-// Orange inits
-// LiquidCrystal_I2C lcd(0x27, 16, 2);
-// HX711 scale;
+  // ??
+#include <stdio.h>
+#include <stdlib.h>
 
-  // Removing for now
-// HX711 Scale Stuff
-// const int LOADCELL_DOUT_PIN = 12;
-// const int LOADCELL_SCK_PIN = 11;
+  // OLED variables
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+
+#define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
+#define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Timing
+
 unsigned long lastInterrupt;
 
 // Other
@@ -21,43 +29,35 @@ unsigned long lastInterrupt;
 const String blank = "                ";
 
 // Pinouts
-const int enablePin = 6;
+
+  // Stepper driver
+const int enablePin = 6;      // Pull LOW to enable
+const int directionPin = 10;
 const int stepPin = 9;
+  // Rotary Encoder
+const int inputButton = 3;
 const int inputCLK = 5;
 const int inputDT = 4;
-const int switchPin = 3;
-  // Depricated
-// const int runpin = 5;
-// const int toggleSwitch = 6;
-// const int motorTerminal1 = 8;
-// const int motorTerminal2 = 7;
 
+// Rotary encoder tracking
+int lastCount = 0;
+int cnt = 0;
+long lastDebounce = 0;
+int bounceThreshhold = 500;
+bool updateCnt = true;
+
+  // Depricated??
 bool isRunning = false;
 
 // Input
-  // Button
 boolean localButton;
 boolean buttonPressed;
 boolean curButtonState;
   
-  // Rotary stuff
-  // Using new form of state detection
-// volatile int currentStateCLK;
-// volatile int previousStateCLK;
-// volatile byte lastInput;
-// volatile byte curClock;
-// volatile boolean rotaryAction;
-
 // UI
 int menuArea = 0;
 int curSelection = 0;
-String curLineA;
-String curLineB;
-
-// Calibration checks
-boolean calibratedCups;
-boolean calibratedBottle;
-boolean calibratedZero;
+String lines[] = {};
 
 // Menus
 String menu[]={"Start", "Calibrations", "Back"};
@@ -66,112 +66,52 @@ String startMenu[] = {"Bottle", "2 cups", "Back"};
 String startStuff[] = {"Start", "Back"};
 int menuSizes[] = {0, sizeof(menu[0]), sizeof(calibrateMenu[0]), sizeof(startMenu[0]), 2,2,2,2,2};
 
-  // Scale will be implemented later
-// Scale stuff
-// long scaleOffset;
-// long reading;
-// long curWeight;
-// const long maxWeight = (long)(1000000 * 0.75);
-// long bottleWeight;
-// long trueWeight;
-
-  // Depricated
-// Tried to figure shit out...
-// long containerWeight = 208780;
-// int gramsContainer=466;
-// long bottle = 104418;
-// long grams5 = 109063;
-// long grams10 = 111506;
-// long grams20 = 116363;
-// long grams40 = 125269;
-// long grams80 = 143929;
-// long grams242 = 217536;
-// long grams242Real = 113118;
-// long cupsWeight = 423872 - containerWeight;
-
-// int grams5Real = 4645;
-// int grams10Real = 7088;
-// int grams20Real = 11945;
-// int grams40Real = 20851;
-// int grams80Real = 39511;
-//(5,4645),(10,7088),(20,11945),(40,20851),(80,39511)
-//1&2: 1.53
-//2&3: 1.69
-//3&4: 1.74
-//4&5: 1.89
-
-int gramsFull = 470; //Not including container
-int rise = 11622;//21436;
-int calRun = 25;//47;
-
-//Add idle animation
-int idle;
-
-//OTHER
-int max = 32695; 
-int zero = 25108;
-
-
 void setup() {
-    // Depricated
-  // For the scale
-  // Serial.begin(57600);
-  // scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
-  
-  // Setup
-    // Depricated
-  // pinMode(toggleSwitch, INPUT);
-  // pinMode(motorTerminal1, OUTPUT);
-  // pinMode(motorTerminal2, OUTPUT);
-  pinMode(enablePin, OUTPUT);
+  Serial.begin(9600);
 
-  // Enable H bridge [ LOW = ENABLED ]
-  digitalWrite(enablePin, LOW);
+     // OLED Setup
+  if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;); // Don't proceed, loop forever
+  }
+
+  // Stepper motor driver
+  
+  pinMode(enablePin, OUTPUT);
+  digitalWrite(enablePin, HIGH);
+  pinMode( directionPin, OUTPUT );
+  pinMode( stepPin, OUTPUT );
 
   // Input
+
   pinMode( inputCLK, INPUT );
   pinMode( inputDT, INPUT );
-  //pinMode(runpin, INPUT_PULLUP);
-  //isButtonPressed = false;  
+  pinMode( inputButton, INPUT_PULLUP );
+    // Producing interfearacne 
+  // attachInterrupt(digitalPinToInterrupt(inputButton), buttonInturupt, FALLING);
 
-  // LCD init
-    // Depricated
-  // lcd.begin();
-  // lcd.backlight();
-  // lcd.clear();
-  // prnt( "Kombucha  Wizard","     V0.0.1     ");
-  // delay( 1000 );
+  // OLED splash  
+  display.clearDisplay();
+  
+  display.setTextColor(SSD1306_WHITE); // Draw white text
+  display.cp437(true);         // Use full 256 char 'Code Page 437' font
 
-    // Depricated
-  // Calibrate the bed
-  // if( calibratedZero == false )
-  // {
-  //   prnt( "Self calibration", "   initiating   ");
-  //   delay( 1000 );
-  //   zeroScale();
-  //   delay( 1000 );
-  // }
+  display.setTextSize(1);      // Normal 1:1 pixel scale
 
-    // Depricated
-  // Add interrupts for the button and rotary encoder
-  // attachInterrupt(digitalPinToInterrupt(2), buttonInturupt, LOW);
-  // attachInterrupt(digitalPinToInterrupt(3), roraryInturupt, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(switchPin), buttonInturupt, FALLING);
+  // display.setTextColor(SSD1306_YELLOW); // Draw white text
+  // display.setCursor(0, 1);     // Start at top-left corner
+  // display.println("brandonmauldin");//@mauldin314.com");
+  // display.setCursor(0, 48);     // Start at top-left corner
+  // display.println(F("          V1.70"));
 
-    // Depricated
-  //zeroCups();
-  // calibratedCups = true;
-  // calibratedBottle = true;
-  // calibratedZero = true;
-
-    // Depricated
-  // Additional setup
-  // previousStateCLK = digitalRead( inputCLK );
-  // lastButtonState = false;
-
-    // Depricated
-  // Display the splash screen
-  // drawToScreen();
+  display.setTextSize(2);      // Normal 1:1 pixel scale
+  display.setCursor(0, 16);     // Start at top-left corner
+  display.println("  KOMBUKA");
+  display.setCursor(0, 32);     // Start at top-left corner
+  display.println("   WIZARD");
+  
+  display.display();
+  delay(1000);
 }
 
 
@@ -314,10 +254,10 @@ void start(String item)
 {
   if ( item == "bottle" )
   {
-    if ( calibratedBottle )
-    {
-      // runMotorAuto();
-    }
+    // if ( calibratedBottle )
+    // {
+    //   // runMotorAuto();
+    // }
   }
 }
 
@@ -338,25 +278,6 @@ void prnt( String lineA, String lineB)
     outputB = errorMessage;
   else
     outputB = lineB;
-
-  // Check to see if the line changes, if not don't waste the time and energy re-wrighting to the screen
-  if( outputA != curLineA)
-  {
-    // lcd.setCursor(0,0);
-    // lcd.print(blank);
-    curLineA = outputA;
-    // lcd.setCursor(0,0);
-    // lcd.print(outputA );
-  }
-
-  if( outputB != curLineB)
-  {
-    // lcd.setCursor(0,1);
-    // lcd.print(blank);
-    curLineB = outputB;
-    // lcd.setCursor(0,1);
-    // lcd.print(outputB );
-  }
 }
 
   // Depricated
