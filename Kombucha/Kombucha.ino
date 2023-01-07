@@ -183,7 +183,64 @@ void loop() {
 //     reading = scale.read();
 //   return reading;
 // }
-
+void readEncoder()
+{
+  static uint8_t state = 0;
+  bool clkState = digitalRead(CLK);
+  bool dtState = digitalRead(DT);
+  switch( state) {
+    case 0:
+      if (!clkState)
+      {
+        state = 1;
+      }else if (!dtState)
+      {
+        state = 4;
+      }
+      break;
+    case 1:
+      if (!dtState)
+      {
+        state = 2;
+      }
+      break;
+    case 2:
+      if (clkState)
+      {
+        state = 3;
+      }
+      break;
+    case 3:
+      if (clkState && dtState)
+      {
+        state = 0;
+        cnt++;
+        updateCnt = true;
+      }
+      break;
+    case 4:
+      if (!clkState)
+      {
+        state = 5;
+      }
+      break;
+    case 5:
+      if (dtState)
+      {
+        state = 6;
+      }
+      break;
+    case 6:
+      if (clkState && dtState)
+      {
+        state = 0;
+        cnt--;
+        updateCnt = true;
+      }
+      break;
+    
+  }
+}
 
 // Inturrutp for handeling button presses
 void buttonInturupt()
