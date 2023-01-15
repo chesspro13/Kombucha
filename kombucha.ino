@@ -25,6 +25,7 @@ const unsigned int stepPin = 9;
 bool invertMotor;
 int steps = 500;
 int microstepping = 1;
+bool motorRunning;
 
   // Rotary Encoder
 const unsigned int inputButton = 3;
@@ -52,10 +53,10 @@ const int characters = 10;
   // Menus
 const char menu[][characters] = { "Menu", "Run", "Calibrate", "Settings", "Version" };
 const char runMenu[][characters] = { "Run", "Bottle 1", "Bottle 2", "Bottle 3", "2 Cups", "Manual", "Auto", backText};
-const char settingsMenu[][characters] = {"Settings", "Motor Dir", "Step rate", "Micro Step", "Back"};
+const char settingsMenu[][characters] = {"Settings", "Motor Dir", "Step rate", "Micro Step", backText};
 const char calibrateMenu[][characters] = { "Calibrate", "Bottle 1", "Bottle 2", "Bottle 3", "2 Cups", backText};
-// const char handMenu[][characters] = { &runMenu[5], "Push", "Pull", "Back"};
-const char motorInvert[][characters] = {"Invert mtr", "Yes", "No", "Back"};
+// const char handMenu[][characters] = { &runMenu[5], "Push", "Pull", backText};
+const char motorInvert[][characters] = {"Invert mtr", "Yes", "No", backText};
 const char microstepOptions[][characters] = {"Micro Step", "Full", "Half", "1/4", "1/8", "1/16", "1/32", backText};
 
 char output[16];
@@ -118,7 +119,7 @@ void splash() {
   oled.println(VERSION);
   
   // display.display();
-  delay(5000);
+  delay(1000);
   needsRefresh = true;
 }
 
@@ -163,6 +164,62 @@ void resetNavigation(int newMenuState) {
   needsRefresh = true;
 }
 
+void calibrate()
+{
+  printToOled(calibrateMenu[0], centerDisplay(calibrateMenu[0]), 0, false);
+  switch ( output[0] )
+  {
+    case 1:
+      printToOled(calibrateMenu[1], centerDisplay(calibrateMenu[1]), 8, false);
+      break;
+    case 2:
+      printToOled(calibrateMenu[1], centerDisplay(calibrateMenu[1]), 8, false);
+      break;
+    case 3:
+      printToOled(calibrateMenu[1], centerDisplay(calibrateMenu[1]), 8, false);
+      break;
+    case 4:
+      printToOled(calibrateMenu[1], centerDisplay(calibrateMenu[1]), 8, false);
+      break;
+  }
+  purge();
+}
+
+void MOTOR_RUN()
+{
+  Serial.println(F("STARTING MOTOR RUN"));
+  motorRunning = true;
+  digitalWrite(enablePin, LOW);
+
+  do{
+    digitalWrite(stepPin, HIGH);
+    delayMicroseconds(steps);
+    digitalWrite(stepPin, LOW);
+    delayMicroseconds(steps);
+  }while( motorRunning );
+  digitalWrite(enablePin, HIGH);
+  resetNavigation(10);
+}
+
+void purge()
+{
+  // Run motor until button is not pressed anymore
+  minMenu = 1;
+  maxMenu = 2;
+
+  oled.clear();
+  printToOled("Purge", centerDisplay("Purge"), 0, true);
+  if(menuSelection == 1)
+  {
+    printToOled("Start", 5, 16, true);
+    printToOled("Back", 0, 32, false);
+  }
+  else
+  {
+    printToOled("Start", 0, 16, false);
+    printToOled("Back", 5, 32, true);
+  }
+}
 
   // Be able to change the steps
 void microsteppingMenu()
@@ -221,6 +278,7 @@ void stepMenu()
   else
     printToOled(output, 0, 32, false);
 }
+
 
 
 void invertMenu(int option)
@@ -334,6 +392,10 @@ void printMenu() {
     case 9:
       menuOutput(microstepOptions, 8);
       break;
+      // Purge Menu
+    case 10:
+      calibrate();
+      break;
   }
 }
 
@@ -372,7 +434,8 @@ void drawToScreen() {
 
 void buttonPressed() {
   curButtonState = false;
-  
+  motorRunning = false;
+
   switch ( menuState )
   {
       // Main Menu
@@ -409,6 +472,22 @@ void buttonPressed() {
     case 3:
       switch( menuSelection )
       {
+        case 1:
+          output[0] = 1;
+          resetNavigation(10);
+          break;
+        case 2:
+          output[0] = 2;
+          resetNavigation(10);
+          break;
+        case 3:
+          output[0] = 3;
+          resetNavigation(10);
+          break;
+        case 4:
+          output[0] = 4;
+          resetNavigation(10);
+          break;
         case 5:
           resetNavigation(1);
           break;
@@ -495,6 +574,16 @@ void buttonPressed() {
           break;
       }
       break;
+    case 10:
+      switch( menuSelection )
+      {
+        case 1:
+          MOTOR_RUN();
+          break;
+        case 2:
+          resetNavigation(10);
+          break;
+      }
   }
 }
 
