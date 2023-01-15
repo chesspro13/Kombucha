@@ -2,22 +2,15 @@
 * Kombucha Machine
 **************************************************************************/
 // OLED
-#include <SPI.h>
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-// ??
-#include <stdio.h>
-#include <stdlib.h>
+#include "SSD1306Ascii.h"
+#include "SSD1306AsciiWire.h"
+
 
 #define VERSION "V1.7.P"
 
 // OLED variables
-#define SCREEN_WIDTH 128     // OLED display width, in pixels
-#define SCREEN_HEIGHT 64     // OLED display height, in pixels
 #define OLED_RESET -1        // Reset pin # (or -1 if sharing Arduino reset pin)
-#define SCREEN_ADDRESS 0x3C  ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+#define SCREEN_ADDRESS 0x3C  ///< See datasheet for Address; 0x3D for 128
 
   // Timing
 const unsigned int debounceTime = 200;
@@ -60,22 +53,24 @@ const int characters = 10;
 const char menu[][characters] = { "Menu", "Run", "Calibrate", "Settings", "Version" };
 const char runMenu[][characters] = { "Run", "Bottle 1", "Bottle 2", "Bottle 3", "2 Cups", "Manual", "Auto", backText};
 const char settingsMenu[][characters] = {"Settings", "Motor Dir", "Step rate", "Micro Step", "Back"};
-const char calibrateMenu[][characters] = { "Calibrate", &runMenu[1], &runMenu[2], &runMenu[3], &runMenu[4], backText};
-const char handMenu[][characters] = { &runMenu[5], "Push", "Pull", "Back"};
+const char calibrateMenu[][characters] = { "Calibrate", "Bottle 1", "Bottle 2", "Bottle 3", "2 Cups", backText};
+// const char handMenu[][characters] = { &runMenu[5], "Push", "Pull", "Back"};
 const char motorInvert[][characters] = {"Invert mtr", "Yes", "No", "Back"};
 const char microstepOptions[][characters] = {"Micro Step", "Full", "Half", "1/4", "1/8", "1/16", "1/32", backText};
 
 char output[16];
 
+SSD1306AsciiWire oled;
 
 void setup() {
   Serial.begin(9600);
 
     // OLED Setup
-  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-    Serial.println(F("SSD1306 allocation failed"));
-    for (;;);  // Don't proceed, loop forever
-  }
+  #if OLED_RESET >= 0
+    oled.begin(&SH1106_128x64, SCREEN_ADDRESS, OLED_RESET);
+  #else // RST_PIN >= 0
+    oled.begin(&SH1106_128x64, SCREEN_ADDRESS);
+  #endif // RST_PIN >= 0
 
     // Stepper motor driver
   pinMode(enablePin, OUTPUT);
@@ -89,9 +84,10 @@ void setup() {
   pinMode(inputButton, INPUT_PULLUP);
   
     // OLED Setup
-  display.setTextWrap(false);
-  display.cp437(true);
-  display.setTextColor(SSD1306_WHITE);  // Draw white text
+  // display.setTextWrap(false);
+  // display.cp437(true);
+  // display.setTextColor(SSD1306_WHITE);  // Draw white text
+  oled.setFont(System5x7);
 
     // Set menu state
   splash();
@@ -105,30 +101,39 @@ void setup() {
   // OLED splash
 void splash() {
   
-  display.clearDisplay();
+  // display.clearDisplay();
+  oled.clear();
+  oled.set1X();
+  oled.setCursor(14,8);
+  oled.println(F("Brandon Mauldin's"));
 
-  display.setTextSize( 1 );
-  display.setCursor( 14, 8 );
-  display.print(F("Brandon Mauldin's"));
-  display.setCursor( 66, 48 );
-  display.print(F("V1.7.P"));
+  oled.set2X();
+  oled.setCursor(25,16);
+  oled.println(F("KOMBUKA"));
+  oled.setCursor(35,32);
+  oled.println(F("WIZARD"));
 
-  display.setTextSize( 2 );
-  display.setCursor( 25, 16 );
-  display.print(F("KOMBUKA"));
-  display.setCursor( 35, 32 );
-  display.print(F("WIZARD"));
-
-  display.display();
-  delay(500);
+  oled.set1X();
+  oled.setCursor(66,48);
+  oled.println(VERSION);
+  
+  // display.display();
+  delay(5000);
   needsRefresh = true;
 }
 
 
-void printToOled(char* output, int x, int y, int textSize) {
-  display.setTextSize( textSize );
-  display.setCursor( x, y );
-  display.print( output );
+void printToOled(char* output, int x, int y, bool doubleSize) {
+  // display.setTextSize( textSize );
+  // display.setCursor( x, y );
+  // display.print( output );
+  if( doubleSize )
+    oled.set2X();
+  else
+    oled.set1X();
+
+  oled.setCursor(x, y);
+  oled.println(output);
 }
 
 
@@ -165,19 +170,19 @@ void microsteppingMenu()
   minMenu = 1;
   maxMenu = 2;
   
-  printToOled(settingsMenu[3], 0, 0, 2);
+  printToOled(settingsMenu[3], 0, 0, true);
 
   strcpy(output, microstepOptions[microstepping]);
   if(menuSelection == 1)
-    printToOled(output, 5, 16, 2);
+    printToOled(output, 5, 16, true);
   else
-    printToOled(output, 0, 16, 1);
+    printToOled(output, 0, 16, false);
   
   strcpy(output, backText);
   if(menuSelection == 2)
-    printToOled(output, 5, 25, 2);
+    printToOled(output, 5, 25, true);
   else
-    printToOled(output, 0, 32, 1);
+    printToOled(output, 0, 32, false);
 }
 
 
@@ -186,12 +191,12 @@ void changeSteps()
 {
   minMenu = 0;
   maxMenu = 100;
-  printToOled(settingsMenu[2], centerDisplay(settingsMenu[2]), 0, 2);
+  printToOled(settingsMenu[2], centerDisplay(settingsMenu[2]), 0, true);
   char stepCount[10];
   itoa( 500 + (25 * menuSelection), stepCount, 10);
   
   strcpy(output, stepCount);
-  printToOled(output, 5, 24, 4);
+  printToOled(output, 5, 24, true);
 }
 
 
@@ -201,20 +206,20 @@ void stepMenu()
   minMenu = 1;
   maxMenu = 2;
 
-  printToOled( settingsMenu[2], centerDisplay(settingsMenu[2]), 0, 2);
+  printToOled( settingsMenu[2], centerDisplay(settingsMenu[2]), 0, true);
 
   itoa(steps, output, 10);
   strcpy(output, output);
   if(menuSelection == 1)
-    printToOled(output, 5, 16, 2);
+    printToOled(output, 5, 16, true);
   else
-    printToOled(output, 0, 16, 1);
+    printToOled(output, 0, 16, false);
   
   strcpy(output, backText);
   if(menuSelection == 2)
-    printToOled(output, 5, 25, 2);
+    printToOled(output, 5, 25, true);
   else
-    printToOled(output, 0, 32, 1);
+    printToOled(output, 0, 32, false);
 }
 
 
@@ -223,7 +228,7 @@ void invertMenu(int option)
   minMenu = 1;
   maxMenu = 2;
 
-  printToOled( "Invert", centerDisplay("Invert"), 0, 2);
+  printToOled( "Invert", centerDisplay("Invert"), 0, true);
   if(menuSelection == 1)
   {
     // strcpy(output, openBracket);
@@ -233,7 +238,7 @@ void invertMenu(int option)
       strcpy(output, falseText);
     // strcat(output, closeBracket);
 
-    printToOled(output, 5, 16, 2);
+    printToOled(output, 5, 16, true);
   }
   else
   {
@@ -242,16 +247,16 @@ void invertMenu(int option)
     else
       strcpy(output, falseText);
 
-    printToOled(output, 0, 16, 1);
+    printToOled(output, 0, 16, false);
   }
   
   strcpy(output, backText);
   if(menuSelection == 2)
   {
-    printToOled(output, 5, 25, 2);
+    printToOled(output, 5, 25, true);
   }
   else
-    printToOled(output, 0, 32, 1);
+    printToOled(output, 0, 32, false);
 }
 
 
@@ -262,19 +267,19 @@ void menuOutput(char options[][characters], int elements)
   maxMenu = elements - 1;
   
     // Menu Name
-  printToOled(options[0], centerDisplay( options[0] ), 0, 2);
+  printToOled(options[0], centerDisplay( options[0] ), 0, true);
 
   { // Top
     if( menuSelection - 1 < minMenu )
       strcpy( output, options[maxMenu]);
     else
       strcpy(output, options[ menuSelection - 1 ]);
-    printToOled(output, 0, 20, 1);
+    printToOled(output, 0, 20, false);
   }
 
   { // Middle    
     strcpy(output, options[ menuSelection ]);
-    printToOled(output, 5, 32, 2);
+    printToOled(output, 5, 32, true);
   } 
   
   { // Bottom
@@ -282,14 +287,15 @@ void menuOutput(char options[][characters], int elements)
       strcpy( output, options[minMenu]);
     else
       strcpy(output, options[ menuSelection + 1 ]);
-    printToOled(output, 0, 50, 1);
+    printToOled(output, 0, 50, false);
   }
 }
 
 
 void printMenu() {
-  display.clearDisplay();
-  display.setTextSize(2); 
+  // display.clearDisplay();
+  // display.setTextSize(2);
+  oled.clear(); 
 
   switch (menuState) {
       // Main Menu
@@ -329,7 +335,6 @@ void printMenu() {
       menuOutput(microstepOptions, 8);
       break;
   }
-  display.display();
 }
 
 
@@ -357,10 +362,10 @@ void drawToScreen() {
     return;
   needsRefresh = false;
 
-  Serial.print(F("\nMenu State: "));
-  Serial.println(menuState);
-  Serial.print(F("Menu Selection: " ));
-  Serial.println(menuSelection);
+  // Serial.print(F("\nMenu State: "));
+  // Serial.println(menuState);
+  // Serial.print(F("Menu Selection: " ));
+  // Serial.println(menuSelection);
   printMenu();
 }
 
