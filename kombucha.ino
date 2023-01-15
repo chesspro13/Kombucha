@@ -53,8 +53,8 @@ const int characters = 10;
 const char menu[][characters] = { "Menu", "Run", "Calibrate", "Settings", "Version" };
 const char runMenu[][characters] = { "Run", "Bottle 1", "Bottle 2", "Bottle 3", "2 Cups", "Manual", "Auto", backText};
 const char settingsMenu[][characters] = {"Settings", "Motor Dir", "Step rate", "Micro Step", "Back"};
-const char calibrateMenu[][characters] = { "Calibrate", &runMenu[1], &runMenu[2], &runMenu[3], &runMenu[4], backText};
-const char handMenu[][characters] = { &runMenu[5], "Push", "Pull", "Back"};
+const char calibrateMenu[][characters] = { "Calibrate", "Bottle 1", "Bottle 2", "Bottle 3", "2 Cups", backText};
+// const char handMenu[][characters] = { &runMenu[5], "Push", "Pull", "Back"};
 const char motorInvert[][characters] = {"Invert mtr", "Yes", "No", "Back"};
 const char microstepOptions[][characters] = {"Micro Step", "Full", "Half", "1/4", "1/8", "1/16", "1/32", backText};
 
@@ -87,6 +87,7 @@ void setup() {
   // display.setTextWrap(false);
   // display.cp437(true);
   // display.setTextColor(SSD1306_WHITE);  // Draw white text
+  oled.setFont(System5x7);
 
     // Set menu state
   splash();
@@ -101,29 +102,36 @@ void setup() {
 void splash() {
   
   // display.clearDisplay();
+  oled.clear();
+  oled.set1X();
+  oled.setCursor(14,8);
+  oled.println(F("Brandon Mauldin's"));
 
-  // display.setTextSize( 1 );
-  // display.setCursor( 14, 8 );
-  // display.print(F("Brandon Mauldin's"));
-  // display.setCursor( 66, 48 );
-  // display.print(F("V1.7.P"));
+  oled.set2X();
+  oled.setCursor(25,16);
+  oled.println(F("KOMBUKA"));
+  oled.setCursor(35,32);
+  oled.println(F("WIZARD"));
 
-  // display.setTextSize( 2 );
-  // display.setCursor( 25, 16 );
-  // display.print(F("KOMBUKA"));
-  // display.setCursor( 35, 32 );
-  // display.print(F("WIZARD"));
-
+  oled.set1X();
+  oled.setCursor(66,48);
+  oled.println(VERSION);
+  
   // display.display();
-  // delay(500);
+  delay(5000);
   needsRefresh = true;
 }
 
 
-void printToOled(char* output, int x, int y, int textSize) {
+void printToOled(char* output, int x, int y, bool doubleSize) {
   // display.setTextSize( textSize );
   // display.setCursor( x, y );
   // display.print( output );
+  if( doubleSize )
+    oled.set2X();
+  else
+    oled.set1X();
+
   oled.setCursor(x, y);
   oled.println(output);
 }
@@ -162,19 +170,19 @@ void microsteppingMenu()
   minMenu = 1;
   maxMenu = 2;
   
-  printToOled(settingsMenu[3], 0, 0, 2);
+  printToOled(settingsMenu[3], 0, 0, true);
 
   strcpy(output, microstepOptions[microstepping]);
   if(menuSelection == 1)
-    printToOled(output, 5, 16, 2);
+    printToOled(output, 5, 16, true);
   else
-    printToOled(output, 0, 16, 1);
+    printToOled(output, 0, 16, false);
   
   strcpy(output, backText);
   if(menuSelection == 2)
-    printToOled(output, 5, 25, 2);
+    printToOled(output, 5, 25, true);
   else
-    printToOled(output, 0, 32, 1);
+    printToOled(output, 0, 32, false);
 }
 
 
@@ -183,12 +191,12 @@ void changeSteps()
 {
   minMenu = 0;
   maxMenu = 100;
-  printToOled(settingsMenu[2], centerDisplay(settingsMenu[2]), 0, 2);
+  printToOled(settingsMenu[2], centerDisplay(settingsMenu[2]), 0, true);
   char stepCount[10];
   itoa( 500 + (25 * menuSelection), stepCount, 10);
   
   strcpy(output, stepCount);
-  printToOled(output, 5, 24, 4);
+  printToOled(output, 5, 24, true);
 }
 
 
@@ -198,20 +206,20 @@ void stepMenu()
   minMenu = 1;
   maxMenu = 2;
 
-  printToOled( settingsMenu[2], centerDisplay(settingsMenu[2]), 0, 2);
+  printToOled( settingsMenu[2], centerDisplay(settingsMenu[2]), 0, true);
 
   itoa(steps, output, 10);
   strcpy(output, output);
   if(menuSelection == 1)
-    printToOled(output, 5, 16, 2);
+    printToOled(output, 5, 16, true);
   else
-    printToOled(output, 0, 16, 1);
+    printToOled(output, 0, 16, false);
   
   strcpy(output, backText);
   if(menuSelection == 2)
-    printToOled(output, 5, 25, 2);
+    printToOled(output, 5, 25, true);
   else
-    printToOled(output, 0, 32, 1);
+    printToOled(output, 0, 32, false);
 }
 
 
@@ -220,7 +228,7 @@ void invertMenu(int option)
   minMenu = 1;
   maxMenu = 2;
 
-  printToOled( "Invert", centerDisplay("Invert"), 0, 2);
+  printToOled( "Invert", centerDisplay("Invert"), 0, true);
   if(menuSelection == 1)
   {
     // strcpy(output, openBracket);
@@ -230,7 +238,7 @@ void invertMenu(int option)
       strcpy(output, falseText);
     // strcat(output, closeBracket);
 
-    printToOled(output, 5, 16, 2);
+    printToOled(output, 5, 16, true);
   }
   else
   {
@@ -239,16 +247,16 @@ void invertMenu(int option)
     else
       strcpy(output, falseText);
 
-    printToOled(output, 0, 16, 1);
+    printToOled(output, 0, 16, false);
   }
   
   strcpy(output, backText);
   if(menuSelection == 2)
   {
-    printToOled(output, 5, 25, 2);
+    printToOled(output, 5, 25, true);
   }
   else
-    printToOled(output, 0, 32, 1);
+    printToOled(output, 0, 32, false);
 }
 
 
@@ -259,19 +267,19 @@ void menuOutput(char options[][characters], int elements)
   maxMenu = elements - 1;
   
     // Menu Name
-  printToOled(options[0], centerDisplay( options[0] ), 0, 2);
+  printToOled(options[0], centerDisplay( options[0] ), 0, true);
 
   { // Top
     if( menuSelection - 1 < minMenu )
       strcpy( output, options[maxMenu]);
     else
       strcpy(output, options[ menuSelection - 1 ]);
-    printToOled(output, 0, 20, 1);
+    printToOled(output, 0, 20, false);
   }
 
   { // Middle    
     strcpy(output, options[ menuSelection ]);
-    printToOled(output, 5, 32, 2);
+    printToOled(output, 5, 32, true);
   } 
   
   { // Bottom
@@ -279,7 +287,7 @@ void menuOutput(char options[][characters], int elements)
       strcpy( output, options[minMenu]);
     else
       strcpy(output, options[ menuSelection + 1 ]);
-    printToOled(output, 0, 50, 1);
+    printToOled(output, 0, 50, false);
   }
 }
 
